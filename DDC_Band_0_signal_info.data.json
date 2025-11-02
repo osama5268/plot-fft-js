@@ -1,0 +1,219 @@
+{
+    "Converter01_DDC0OUT_PDDCEQ_DECIM_4x1NCO_0.000MDDC_REAL_DATA_0_DDC0": {
+        "in_band_components": {
+            "DC": {
+                "name": "DC",
+                "nyquist_zone": 1,
+                "original_frequency": 0,
+                "alias_frequency": -99999999.99999952,
+                "index": 7168,
+                "amplitude": -56.9118477268772,
+                "phase": 1.4661693130299054
+            },
+            "Carrier": {
+                "name": "Carrier",
+                "nyquist_zone": 1,
+                "original_frequency": 125000000.0,
+                "alias_frequency": 25000000.000000358,
+                "index": 17408,
+                "amplitude": -14.8860939269987,
+                "phase": 0.5885409721667074
+            },
+            "HD2": {
+                "name": "HD2",
+                "nyquist_zone": 1,
+                "original_frequency": 250000000.0,
+                "alias_frequency": 150000000.00000036,
+                "index": 27648,
+                "amplitude": -89.91810857834139,
+                "phase": 2.8543263761161812
+            }
+        },
+        "out_of_band_components": {
+            "CarrierN": {
+                "name": "CarrierN",
+                "nyquist_zone": 1,
+                "original_frequency": 125000000.0,
+                "alias_frequency": 150000000.00000048,
+                "index": 27648,
+                "amplitude": -89.91810857834139,
+                "phase": 2.8543263761161812
+            },
+            "HD2N": {
+                "name": "HD2N",
+                "nyquist_zone": 1,
+                "original_frequency": 250000000.0,
+                "alias_frequency": 25000000.000000477,
+                "index": 17408,
+                "amplitude": -14.8860939269987,
+                "phase": 0.5885409721667074
+            },
+            "HD3": {
+                "name": "HD3",
+                "nyquist_zone": 1,
+                "original_frequency": 375000000.0,
+                "alias_frequency": -99999999.99999964,
+                "index": 7168,
+                "amplitude": -56.9118477268772,
+                "phase": 1.4661693130299054
+            },
+            "HD3N": {
+                "name": "HD3N",
+                "nyquist_zone": 1,
+                "original_frequency": 375000000.0,
+                "alias_frequency": -99999999.99999964,
+                "index": 7168,
+                "amplitude": -56.9118477268772,
+                "phase": 1.4661693130299054
+            },
+            "HD4": {
+                "name": "HD4",
+                "nyquist_zone": 1,
+                "original_frequency": 500000000.0,
+                "alias_frequency": 25000000.000000358,
+                "index": 17408,
+                "amplitude": -14.8860939269987,
+                "phase": 0.5885409721667074
+            },
+            "HD4N": {
+                "name": "HD4N",
+                "nyquist_zone": 1,
+                "original_frequency": 500000000.0,
+                "alias_frequency": 150000000.00000036,
+                "index": 27648,
+                "amplitude": -89.91810857834139,
+                "phase": 2.8543263761161812
+            },
+            "HD5": {
+                "name": "HD5",
+                "nyquist_zone": 1,
+                "original_frequency": 625000000.0,
+                "alias_frequency": 150000000.00000036,
+                "index": 27648,
+                "amplitude": -89.91810857834139,
+                "phase": 2.8543263761161812
+            },
+            "HD5N": {
+                "name": "HD5N",
+                "nyquist_zone": 1,
+                "original_frequency": 625000000.0,
+                "alias_frequency": 25000000.000000358,
+                "index": 17408,
+                "amplitude": -14.8860939269987,
+                "phase": 0.5885409721667074
+            }
+        },
+        "spurious_components": {
+            "Spur0": {
+                "name": "Spur0",
+                "nyquist_zone": 0,
+                "original_frequency": 0,
+                "alias_frequency": 25024414.0625,
+                "index": 17410,
+                "amplitude": -90.31423318519217,
+                "phase": 0.0
+            },
+            "Spur1": {
+                "name": "Spur1",
+                "nyquist_zone": 0,
+                "original_frequency": 0,
+                "alias_frequency": 24975585.9375,
+                "index": 17406,
+                "amplitude": -90.46351393306877,
+                "phase": 0.0
+            },
+            "Spur2": {
+                "name": "Spur2",
+                "nyquist_zone": 0,
+                "original_frequency": 0,
+                "alias_frequency": 24951171.875,
+                "index": 17404,
+                "amplitude": -94.29958821260993,
+                "phase": 0.0
+            },
+            "Spur3": {
+                "name": "Spur3",
+                "nyquist_zone": 0,
+                "original_frequency": 0,
+                "alias_frequency": 25048828.125,
+                "index": 17412,
+                "amplitude": -94.95842022925488,
+                "phase": 0.0
+            },
+            "Spur4": {
+                "name": "Spur4",
+                "nyquist_zone": 0,
+                "original_frequency": 0,
+                "alias_frequency": -99987792.96875,
+                "index": 7169,
+                "amplitude": -95.12412891965484,
+                "phase": 0.0
+            }
+        },
+        "spurious_components_excl": {
+            "Spur0": {
+                "name": "Spur0",
+                "nyquist_zone": 0,
+                "original_frequency": 0,
+                "alias_frequency": 87500000.0,
+                "index": 22528,
+                "amplitude": -107.7463214681961,
+                "phase": 0.0
+            },
+            "Spur1": {
+                "name": "Spur1",
+                "nyquist_zone": 0,
+                "original_frequency": 0,
+                "alias_frequency": 144531250.0,
+                "index": 27200,
+                "amplitude": -108.3648742824582,
+                "phase": 0.0
+            },
+            "Spur2": {
+                "name": "Spur2",
+                "nyquist_zone": 0,
+                "original_frequency": 0,
+                "alias_frequency": -7470703.125,
+                "index": 14748,
+                "amplitude": -108.6905132274052,
+                "phase": 0.0
+            },
+            "Spur3": {
+                "name": "Spur3",
+                "nyquist_zone": 0,
+                "original_frequency": 0,
+                "alias_frequency": 104431152.34375,
+                "index": 23915,
+                "amplitude": -109.1726117698502,
+                "phase": 0.0
+            },
+            "Spur4": {
+                "name": "Spur4",
+                "nyquist_zone": 0,
+                "original_frequency": 0,
+                "alias_frequency": 38940429.6875,
+                "index": 18550,
+                "amplitude": -109.40752051445293,
+                "phase": 0.0
+            }
+        },
+        "single_tone_info": {
+            "snr": 66.36723314235792,
+            "noise_level": -118.80423175981738,
+            "sinad": 66.36836397033437,
+            "thd": -4.094099733233163,
+            "enob": 10.732098528630884,
+            "nsd": -152.1075458196351,
+            "sfdr": -14.8860939269987
+        },
+        "single_tone_info_excl": {
+            "snr": 67.63063424116305,
+            "noise_level": -119.27472846091698,
+            "sinad": 67.6317650691395,
+            "thd": -103.75273197661832,
+            "enob": 10.941965820791204,
+            "nsd": -153.37094691844024,
+            "sfdr": -14.8860939269987
+        }
+    }
+}

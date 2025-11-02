@@ -1,0 +1,706 @@
+<!--<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>FFT Viewer</title>
+        <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
+        <style>
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                height: 100%;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    sans-serif;
+            }
+            #controls {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                background: white;
+                padding: 10px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                z-index: 1000;
+            }
+            #plot {
+                width: 100%;
+                height: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="controls">
+            <label>
+                <input type="checkbox" id="centerDC" checked />
+                Center DC (fftshift)
+            </label>
+        </div>
+        <div id="plot"></div>
+        <script type="module">
+            let plotData = null;
+
+            function computeFFT(real, imag) {
+                const N = real.length;
+
+                const complexArray = [];
+                for (let i = 0; i < N; i++) {
+                    complexArray.push(math.complex(real[i], imag[i]));
+                }
+
+                const result = math.fft(complexArray);
+
+                const outReal = new Float32Array(N);
+                const outImag = new Float32Array(N);
+
+                for (let i = 0; i < N; i++) {
+                    outReal[i] = result[i].re;
+                    outImag[i] = result[i].im;
+                }
+
+                return { real: outReal, imag: outImag };
+            }
+
+            async function main() {
+                const params = new URLSearchParams(location.search);
+                const file = params.get("file") || "samples";
+
+                const meta = await (await fetch(`${file}.json`)).json();
+                const buf = await (await fetch(`${file}.bin`)).arrayBuffer();
+                const data = new Float32Array(buf);
+
+                console.log("Meta:", meta);
+                console.log("Buffer size:", buf.byteLength);
+                console.log("Float32Array length:", data.length);
+
+                const N = meta.length;
+                console.log("FFT length:", N);
+
+                if (meta.is_complex && data.length < N * 2) {
+                    throw new Error(
+                        `Not enough data: expected ${N * 2} floats, got ${data.length}`,
+                    );
+                } else if (!meta.is_complex && data.length < N) {
+                    throw new Error(
+                        `Not enough data: expected ${N} floats, got ${data.length}`,
+                    );
+                }
+
+                let real = new Float32Array(N);
+                let imag = new Float32Array(N);
+
+                if (meta.is_complex) {
+                    for (let i = 0; i < N; i++) {
+                        real[i] = data[i * 2];
+                        imag[i] = data[i * 2 + 1];
+                    }
+                } else {
+                    real.set(data.slice(0, N));
+                }
+
+                console.log("Computing FFT...");
+                const t0 = performance.now();
+
+                const result = computeFFT(real, imag);
+
+                const t1 = performance.now();
+                console.log(`FFT computed in ${(t1 - t0).toFixed(2)} ms`);
+
+                const mag_dB = new Float32Array(N);
+                for (let k = 0; k < N; k++) {
+                    const magnitude =
+                        Math.sqrt(result.real[k] ** 2 + result.imag[k] ** 2) /
+                        N;
+                    mag_dB[k] = 20 * Math.log10(magnitude / N + 1e-10);
+                }
+
+                const fs = meta.sample_rate || 1.0;
+                const freqs = new Float32Array(N);
+
+                for (let k = 0; k < N; k++) {
+                    if (k < N / 2) {
+                        freqs[k] = k * (fs / N); // Positive frequencies
+                    } else {
+                        freqs[k] = (k - N) * (fs / N); // Negative frequencies
+                    }
+                }
+
+                console.log(
+                    "Frequency range:",
+                    Math.min(...freqs).toExponential(2),
+                    "to",
+                    Math.max(...freqs).toExponential(2),
+                    "Hz",
+                );
+                console.log(
+                    "Magnitude range:",
+                    Math.min(...mag_dB).toFixed(2),
+                    "to",
+                    Math.max(...mag_dB).toFixed(2),
+                    "dB",
+                );
+
+                plotData = {
+                    freqs: Array.from(freqs),
+                    mag_dB: Array.from(mag_dB),
+                    N,
+                };
+
+                updatePlot();
+
+                document
+                    .getElementById("centerDC")
+                    .addEventListener("change", updatePlot);
+            }
+
+            function updatePlot() {
+                if (!plotData) return;
+
+                const { freqs, mag_dB, N } = plotData;
+                const centerDC = document.getElementById("centerDC").checked;
+
+                let x, y;
+                if (centerDC) {
+                    const half = Math.floor(N / 2);
+                    x = [...freqs.slice(half), ...freqs.slice(0, half)];
+                    y = [...mag_dB.slice(half), ...mag_dB.slice(0, half)];
+                } else {
+                    x = freqs;
+                    y = mag_dB;
+                }
+
+                const trace = {
+                    x: x,
+                    y: y,
+                    mode: "lines",
+                    line: { width: 1 },
+                };
+
+                const layout = {
+                    title: "Spectrum",
+                    xaxis: { title: "Frequency (Hz)" },
+                    yaxis: { title: "Magnitude (dBFS)" },
+                    margin: { l: 60, r: 20, t: 50, b: 60 },
+                };
+
+                Plotly.newPlot("plot", [trace], layout, {
+                    responsive: true,
+                    scrollZoom: true,
+                });
+            }
+
+            main().catch((err) => console.error(err));
+        </script>
+    </body>
+</html>-->
+
+<!--alternate design: -->
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>FFT Viewer</title>
+        <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.11.0/math.min.js"></script>
+        <style>
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                height: 100%;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    sans-serif;
+                background: #f5f5f5;
+                color: #2d2d2d;
+            }
+            #container {
+                display: flex;
+                height: 100vh;
+            }
+            #sidebar {
+                width: 320px;
+                background: #ffffff;
+                padding: 20px;
+                overflow-y: auto;
+                border-right: 2px solid #d0d0d0;
+            }
+            #plot {
+                flex: 1;
+                background: #fafafa;
+            }
+            h2 {
+                margin: 0 0 15px 0;
+                font-size: 18px;
+                color: #424242;
+                border-bottom: 2px solid #d0d0d0;
+                padding-bottom: 8px;
+            }
+            .info-section {
+                margin-bottom: 25px;
+            }
+            .metric {
+                display: flex;
+                justify-content: space-between;
+                padding: 8px 0;
+                border-bottom: 1px solid #2a3f5f;
+            }
+            .metric-label {
+                color: #9e9e9e;
+                font-size: 13px;
+            }
+            .metric-value {
+                font-weight: 600;
+                font-size: 14px;
+                color: #fff;
+            }
+            .component {
+                background: #0f1423;
+                padding: 12px;
+                margin: 8px 0;
+                border-radius: 6px;
+                border-left: 4px solid;
+            }
+            .component.dc {
+                border-left-color: #ff9800;
+            }
+            .component.carrier {
+                border-left-color: #4caf50;
+            }
+            .component.hd {
+                border-left-color: #f44336;
+            }
+            .component.spur {
+                border-left-color: #9c27b0;
+            }
+            .component-name {
+                font-weight: 600;
+                font-size: 14px;
+                margin-bottom: 6px;
+            }
+            .component-detail {
+                font-size: 12px;
+                color: #9e9e9e;
+                display: flex;
+                justify-content: space-between;
+                margin: 3px 0;
+            }
+            .loading {
+                text-align: center;
+                padding: 40px;
+                color: #4fc3f7;
+                font-size: 16px;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="container">
+            <div id="sidebar">
+                <h2>Signal Analysis</h2>
+                <div id="sidebar-content" class="loading">Loading...</div>
+            </div>
+            <div id="plot"></div>
+        </div>
+        <script type="module">
+            let plotData = null;
+
+            function computeFFT(real, imag) {
+                const N = real.length;
+
+                const complexArray = [];
+                for (let i = 0; i < N; i++) {
+                    complexArray.push(math.complex(real[i], imag[i]));
+                }
+
+                const result = math.fft(complexArray);
+
+                const outReal = new Float32Array(N);
+                const outImag = new Float32Array(N);
+
+                for (let i = 0; i < N; i++) {
+                    outReal[i] = result[i].re;
+                    outImag[i] = result[i].im;
+                }
+
+                return { real: outReal, imag: outImag };
+            }
+
+            async function main() {
+                const params = new URLSearchParams(location.search);
+                const file = params.get("file") || "samples";
+
+                const meta = await (await fetch(`${file}.json`)).json();
+                const buf = await (await fetch(`${file}.bin`)).arrayBuffer();
+                const data = new Float32Array(buf);
+
+                let signalInfo = null;
+                try {
+                    signalInfo = await (
+                        await fetch(
+                            `${file.replace("samples", "signal_info.data")}.json`,
+                        )
+                    ).json();
+                    console.log("Signal info loaded:", signalInfo);
+                } catch (e) {
+                    console.log("No signal info file found");
+                }
+
+                console.log("Meta:", meta);
+                console.log("Buffer size:", buf.byteLength);
+                console.log("Float32Array length:", data.length);
+
+                const N = meta.length;
+                console.log("FFT length:", N);
+
+                if (meta.is_complex && data.length < N * 2) {
+                    throw new Error(
+                        `Not enough data: expected ${N * 2} floats, got ${data.length}`,
+                    );
+                } else if (!meta.is_complex && data.length < N) {
+                    throw new Error(
+                        `Not enough data: expected ${N} floats, got ${data.length}`,
+                    );
+                }
+
+                let real = new Float32Array(N);
+                let imag = new Float32Array(N);
+
+                if (meta.is_complex) {
+                    for (let i = 0; i < N; i++) {
+                        real[i] = data[i * 2];
+                        imag[i] = data[i * 2 + 1];
+                    }
+                } else {
+                    real.set(data.slice(0, N));
+                }
+
+                console.log("Computing FFT...");
+                const t0 = performance.now();
+
+                // Compute FFT
+                const result = computeFFT(real, imag);
+
+                const t1 = performance.now();
+                console.log(`FFT computed in ${(t1 - t0).toFixed(2)} ms`);
+
+                // Compute magnitude (in dBFS) - normalize by 32768 (16-bit full scale)
+                const mag_dB = new Float32Array(N);
+                for (let k = 0; k < N; k++) {
+                    const magnitude =
+                        Math.sqrt(result.real[k] ** 2 + result.imag[k] ** 2) /
+                        N;
+                    mag_dB[k] = 20 * Math.log10(magnitude / 32768 + 1e-10);
+                }
+
+                // Frequency axis - Python's np.fft.fftfreq
+                // For complex signals, we get full spectrum: -fs/2 to fs/2
+                const fs = meta.sample_rate || 1.0;
+                const freqs = new Float32Array(N);
+
+                for (let k = 0; k < N; k++) {
+                    if (k < N / 2) {
+                        freqs[k] = k * (fs / N); // Positive frequencies
+                    } else {
+                        freqs[k] = (k - N) * (fs / N); // Negative frequencies
+                    }
+                }
+
+                console.log(
+                    "Frequency range:",
+                    Math.min(...freqs).toExponential(2),
+                    "to",
+                    Math.max(...freqs).toExponential(2),
+                    "Hz",
+                );
+                console.log(
+                    "Magnitude range:",
+                    Math.min(...mag_dB).toFixed(2),
+                    "to",
+                    Math.max(...mag_dB).toFixed(2),
+                    "dBFS",
+                );
+
+                // Apply fftshift to center DC
+                const half = Math.floor(N / 2);
+                const x = [
+                    ...Array.from(freqs.slice(half)),
+                    ...Array.from(freqs.slice(0, half)),
+                ];
+                const y = [...mag_dB.slice(half), ...mag_dB.slice(0, half)];
+
+                // Store data for toggling
+                plotData = { x, y, N, signalInfo, fs };
+
+                // Render plot and sidebar
+                updatePlot();
+                updateSidebar();
+            }
+
+            function updateSidebar() {
+                if (!plotData || !plotData.signalInfo) {
+                    document.getElementById("sidebar-content").innerHTML =
+                        '<div style="color: #9e9e9e; font-size: 13px;">No signal info available</div>';
+                    return;
+                }
+
+                const converterKey = Object.keys(plotData.signalInfo)[0];
+                const data = plotData.signalInfo[converterKey];
+
+                let html = "";
+
+                // Performance metrics
+                html += '<div class="info-section">';
+                html += "<h2>Performance Metrics</h2>";
+                const metrics =
+                    data.single_tone_info || data.single_tone_info_excl;
+                if (metrics) {
+                    html += `<div class="metric"><span class="metric-label">SNR</span><span class="metric-value">${metrics.snr.toFixed(2)} dB</span></div>`;
+                    html += `<div class="metric"><span class="metric-label">SINAD</span><span class="metric-value">${metrics.sinad.toFixed(2)} dB</span></div>`;
+                    html += `<div class="metric"><span class="metric-label">SFDR</span><span class="metric-value">${Math.abs(metrics.sfdr).toFixed(2)} dB</span></div>`;
+                    html += `<div class="metric"><span class="metric-label">THD</span><span class="metric-value">${metrics.thd.toFixed(2)} dB</span></div>`;
+                    html += `<div class="metric"><span class="metric-label">ENOB</span><span class="metric-value">${metrics.enob.toFixed(2)} bits</span></div>`;
+                }
+                html += "</div>";
+
+                // In-band components
+                if (data.in_band_components) {
+                    html += '<div class="info-section">';
+                    html += "<h2>In-Band Components</h2>";
+                    for (const [key, comp] of Object.entries(
+                        data.in_band_components,
+                    )) {
+                        const className =
+                            key === "DC"
+                                ? "dc"
+                                : key === "Carrier"
+                                  ? "carrier"
+                                  : "hd";
+                        html += `<div class="component ${className}">`;
+                        html += `<div class="component-name">${key}</div>`;
+                        html += `<div class="component-detail"><span>Frequency</span><span>${(comp.alias_frequency / 1e6).toFixed(2)} MHz</span></div>`;
+                        html += `<div class="component-detail"><span>Amplitude</span><span>${comp.amplitude.toFixed(2)} dBFS</span></div>`;
+                        html += `<div class="component-detail"><span>Phase</span><span>${comp.phase.toFixed(3)} rad</span></div>`;
+                        html += "</div>";
+                    }
+                    html += "</div>";
+                }
+
+                // Top spurious
+                if (data.spurious_components) {
+                    html += '<div class="info-section">';
+                    html += "<h2>Top Spurious (Near Carrier)</h2>";
+                    let count = 0;
+                    for (const [key, comp] of Object.entries(
+                        data.spurious_components,
+                    )) {
+                        if (count++ >= 5) break;
+                        html += `<div class="component spur">`;
+                        html += `<div class="component-name">${key}</div>`;
+                        html += `<div class="component-detail"><span>Frequency</span><span>${(comp.alias_frequency / 1e6).toFixed(2)} MHz</span></div>`;
+                        html += `<div class="component-detail"><span>Amplitude</span><span>${comp.amplitude.toFixed(2)} dBFS</span></div>`;
+                        html += "</div>";
+                    }
+                    html += "</div>";
+                }
+
+                document.getElementById("sidebar-content").innerHTML = html;
+            }
+
+            function updatePlot() {
+                if (!plotData) return;
+
+                const { x, y, signalInfo, fs } = plotData;
+
+                const traces = [
+                    {
+                        x: x,
+                        y: y,
+                        mode: "lines",
+                        line: { width: 1.5, color: "#4fc3f7" },
+                        name: "Spectrum",
+                        hovertemplate:
+                            "%{x:.2e} Hz<br>%{y:.2f} dBFS<extra></extra>",
+                    },
+                ];
+
+                const shapes = [];
+                const annotations = [];
+
+                // Add 0 dBFS reference line
+                shapes.push({
+                    type: "line",
+                    xref: "paper",
+                    x0: 0,
+                    x1: 1,
+                    y0: 0,
+                    y1: 0,
+                    line: {
+                        color: "#ff5252",
+                        width: 2,
+                        dash: "dash",
+                    },
+                });
+
+                annotations.push({
+                    xref: "paper",
+                    x: 0.98,
+                    y: 0,
+                    text: "0 dBFS",
+                    showarrow: false,
+                    xanchor: "right",
+                    yanchor: "bottom",
+                    font: { color: "#ff5252", size: 12, family: "monospace" },
+                    bgcolor: "#0a0e27",
+                    borderpad: 4,
+                });
+
+                // Extract signal info if available
+                if (signalInfo) {
+                    const converterKey = Object.keys(signalInfo)[0];
+                    const data = signalInfo[converterKey];
+
+                    // Mark DC
+                    if (data.in_band_components?.DC) {
+                        const dc = data.in_band_components.DC;
+                        shapes.push({
+                            type: "line",
+                            x0: dc.alias_frequency,
+                            x1: dc.alias_frequency,
+                            yref: "paper",
+                            y0: 0,
+                            y1: 0.95,
+                            line: { color: "#ff9800", width: 2, dash: "dot" },
+                        });
+
+                        annotations.push({
+                            x: dc.alias_frequency,
+                            y: 0.95,
+                            yref: "paper",
+                            text: `DC<br>${dc.amplitude.toFixed(1)} dBFS`,
+                            showarrow: false,
+                            yanchor: "bottom",
+                            font: {
+                                color: "#ff9800",
+                                size: 13,
+                                family: "monospace",
+                                weight: "bold",
+                            },
+                            bgcolor: "rgba(10, 14, 39, 0.9)",
+                            bordercolor: "#ff9800",
+                            borderwidth: 1,
+                            borderpad: 6,
+                        });
+                    }
+
+                    // Mark Carrier
+                    if (data.in_band_components?.Carrier) {
+                        const carrier = data.in_band_components.Carrier;
+                        shapes.push({
+                            type: "line",
+                            x0: carrier.alias_frequency,
+                            x1: carrier.alias_frequency,
+                            yref: "paper",
+                            y0: 0,
+                            y1: 0.95,
+                            line: { color: "#4caf50", width: 3 },
+                        });
+
+                        annotations.push({
+                            x: carrier.alias_frequency,
+                            y: 0.95,
+                            yref: "paper",
+                            text: `CARRIER<br>${carrier.amplitude.toFixed(1)} dBFS<br>${(carrier.alias_frequency / 1e6).toFixed(2)} MHz`,
+                            showarrow: false,
+                            yanchor: "bottom",
+                            font: {
+                                color: "#4caf50",
+                                size: 14,
+                                family: "monospace",
+                                weight: "bold",
+                            },
+                            bgcolor: "rgba(10, 14, 39, 0.9)",
+                            bordercolor: "#4caf50",
+                            borderwidth: 2,
+                            borderpad: 8,
+                        });
+                    }
+
+                    // Mark HD2
+                    if (data.in_band_components?.HD2) {
+                        const hd2 = data.in_band_components.HD2;
+                        shapes.push({
+                            type: "line",
+                            x0: hd2.alias_frequency,
+                            x1: hd2.alias_frequency,
+                            yref: "paper",
+                            y0: 0,
+                            y1: 0.85,
+                            line: { color: "#f44336", width: 1.5, dash: "dot" },
+                        });
+
+                        annotations.push({
+                            x: hd2.alias_frequency,
+                            y: 0.85,
+                            yref: "paper",
+                            text: `HD2<br>${hd2.amplitude.toFixed(1)} dBFS`,
+                            showarrow: false,
+                            yanchor: "bottom",
+                            font: {
+                                color: "#f44336",
+                                size: 11,
+                                family: "monospace",
+                            },
+                            bgcolor: "rgba(10, 14, 39, 0.85)",
+                            bordercolor: "#f44336",
+                            borderwidth: 1,
+                            borderpad: 4,
+                        });
+                    }
+                }
+
+                const layout = {
+                    title: {
+                        text: "FFT Spectrum Analysis",
+                        font: { size: 20, color: "#4fc3f7" },
+                    },
+                    xaxis: {
+                        title: "Frequency (Hz)",
+                        gridcolor: "#2a3f5f",
+                        color: "#9e9e9e",
+                    },
+                    yaxis: {
+                        title: "Magnitude (dBFS)",
+                        gridcolor: "#2a3f5f",
+                        color: "#9e9e9e",
+                    },
+                    paper_bgcolor: "#0a0e27",
+                    plot_bgcolor: "#0f1423",
+                    margin: { l: 70, r: 20, t: 60, b: 60 },
+                    shapes: shapes,
+                    annotations: annotations,
+                    showlegend: false,
+                    font: { family: "system-ui, -apple-system, sans-serif" },
+                };
+
+                Plotly.newPlot("plot", traces, layout, {
+                    responsive: true,
+                    scrollZoom: true,
+                    displayModeBar: true,
+                    modeBarButtonsToRemove: ["lasso2d", "select2d"],
+                });
+            }
+
+            main().catch((err) => {
+                console.error(err);
+                document.getElementById("sidebar-content").innerHTML =
+                    `<div style="color: #f44336;">Error: ${err.message}</div>`;
+            });
+        </script>
+    </body>
+</html>

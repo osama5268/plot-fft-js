@@ -1,0 +1,44 @@
+{
+    "sample_rate": 1500000000.0,
+    "carrier_frequency": 125000000.0,
+    "single_sided_spectrum": false,
+    "complex_carrier": false,
+    "max_harmonic_order": 5,
+    "decimation_factor": 4,
+    "nco_frequency": -99999999.99999964,
+    "number_of_bits": 16,
+    "number_of_spurs": 5,
+    "adc_gain": false,
+    "relative_to_carrier": false,
+    "search_radius": 0,
+    "quantized_signal": true,
+    "peak_full_scale_amplitude": 1.6,
+    "name_only": false,
+    "exclude_freq": [
+        {
+            "min": 0,
+            "max": 50000000.0
+        },
+        {
+            "min": 710000000.0,
+            "max": 724000000.0
+        },
+        {
+            "min": 935000000.0,
+            "max": 957000000.0
+        },
+        {
+            "min": 1805000000.0,
+            "max": 1833000000.0
+        },
+        {
+            "min": 2120000000.0,
+            "max": 2165000000.0
+        },
+        {
+            "min": 2335000000.0,
+            "max": 2365000000.0
+        }
+    ],
+    "ignore_bins_arnd_carrier": 200
+}

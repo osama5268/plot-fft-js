@@ -1,0 +1,6 @@
+{
+  "dtype": "float32",
+  "length": 30720,
+  "is_complex": true,
+  "sample_rate": 375000000
+}
