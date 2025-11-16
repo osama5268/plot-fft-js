@@ -741,7 +741,53 @@
                 loadAnotherBtn.style.display = "none";
                 currentFile = null;
                 window.plotData = null;
+                // Clear URL params
+                window.history.replaceState(
+                    {},
+                    document.title,
+                    window.location.pathname,
+                );
             });
+
+            async function loadFromURL(samplesPath) {
+                try {
+                    // Show viewer, hide drop zone
+                    dropZoneContainer.style.display = "none";
+                    viewerContainer.classList.add("active");
+                    loadAnotherBtn.style.display = "block";
+
+                    document.getElementById("sidebar-content").innerHTML =
+                        '<div class="loading">Loading from URL...</div>';
+
+                    // Fetch the NPY file
+                    const response = await fetch(samplesPath);
+                    if (!response.ok) {
+                        throw new Error(
+                            `Failed to fetch file: ${response.statusText}`,
+                        );
+                    }
+
+                    const arrayBuffer = await response.arrayBuffer();
+
+                    // Create a mock file object for compatibility
+                    currentFile = {
+                        name: samplesPath.split("/").pop() || "samples.npy",
+                    };
+
+                    await processNPYData(
+                        arrayBuffer,
+                        currentFile.name,
+                        samplesPath,
+                    );
+                } catch (err) {
+                    console.error("Error loading from URL:", err);
+                    document.getElementById("sidebar-content").innerHTML =
+                        `<div class="error"><strong>Error loading from URL:</strong> ${err.message}</div>`;
+                    dropZoneContainer.style.display = "flex";
+                    viewerContainer.classList.remove("active");
+                    loadAnotherBtn.style.display = "none";
+                }
+            }
 
             async function processFile(file) {
                 if (!file.name.endsWith(".npy")) {
@@ -897,7 +943,7 @@
 
                 if (metricsExcl) {
                     html +=
-                        '<div style="font-size: 12px; font-weight: 600; color: var(--accent-blue); margin-bottom: 8px;">Excluding Blackout Frequencies</div>';
+                        '<div style="font-size: 12px; font-weight: 600; color: var(--accent-blue); margin-bottom: 8px;">Excluding Spurs</div>';
                     html += '<div class="metric-grid">';
                     html += `<div class="metric-card">
                     <div class="metric-label">SNR</div>
@@ -928,7 +974,7 @@
 
                 if (metricsIncl) {
                     html +=
-                        '<div style="font-size: 12px; font-weight: 600; color: var(--accent-orange); margin: 16px 0 8px 0;">Including Blackout Frequencies</div>';
+                        '<div style="font-size: 12px; font-weight: 600; color: var(--accent-orange); margin: 16px 0 8px 0;">Including Spurs</div>';
                     html += '<div class="metric-grid">';
                     html += `<div class="metric-card">
                     <div class="metric-label">SNR</div>
@@ -1086,7 +1132,7 @@
 
                         annotations.push({
                             x: dcFreq,
-                            y: dc.amplitude + 10,
+                            y: dc.amplitude + 15,
                             text: `DC<br>${dc.amplitude.toFixed(1)} dBFS<br>${(dcFreq / 1e6).toFixed(2)} MHz`,
                             showarrow: false,
                             font: {
@@ -1111,7 +1157,7 @@
 
                         annotations.push({
                             x: carrierFreq,
-                            y: carrier.amplitude + 10,
+                            y: carrier.amplitude + 15,
                             text: `CARRIER<br>${carrier.amplitude.toFixed(1)} dBFS<br>${(carrierFreq / 1e6).toFixed(2)} MHz`,
                             showarrow: false,
                             font: {
@@ -1136,7 +1182,7 @@
 
                         annotations.push({
                             x: hd2Freq,
-                            y: hd2.amplitude + 10,
+                            y: hd2.amplitude + 15,
                             text: `HD2<br>${hd2.amplitude.toFixed(1)} dBFS<br>${(hd2Freq / 1e6).toFixed(2)} MHz`,
                             showarrow: false,
                             font: {
@@ -1153,6 +1199,72 @@
                         });
                     }
                 }
+
+                // Add FFT resolution markers at edges
+                const minFreq = Math.min(...x);
+                const maxFreq = Math.max(...x);
+                const freqResolution = (maxFreq - minFreq) / (x.length - 1);
+
+                annotations.push({
+                    xref: "x",
+                    yref: "paper",
+                    x: minFreq,
+                    y: -0.12,
+                    text: `${(minFreq / 1e6).toFixed(2)} MHz`,
+                    showarrow: false,
+                    font: {
+                        color: isDark ? "#9e9e9e" : "#6c757d",
+                        size: 10,
+                        family: "monospace",
+                    },
+                    bgcolor: isDark
+                        ? "rgba(10, 14, 39, 0.9)"
+                        : "rgba(255, 255, 255, 0.9)",
+                    bordercolor: isDark ? "#2a3f5f" : "#dee2e6",
+                    borderwidth: 1,
+                    borderpad: 4,
+                });
+
+                annotations.push({
+                    xref: "x",
+                    yref: "paper",
+                    x: maxFreq,
+                    y: -0.12,
+                    text: `${(maxFreq / 1e6).toFixed(2)} MHz`,
+                    showarrow: false,
+                    font: {
+                        color: isDark ? "#9e9e9e" : "#6c757d",
+                        size: 10,
+                        family: "monospace",
+                    },
+                    bgcolor: isDark
+                        ? "rgba(10, 14, 39, 0.9)"
+                        : "rgba(255, 255, 255, 0.9)",
+                    bordercolor: isDark ? "#2a3f5f" : "#dee2e6",
+                    borderwidth: 1,
+                    borderpad: 4,
+                });
+
+                annotations.push({
+                    xref: "paper",
+                    yref: "paper",
+                    x: 0.5,
+                    y: -0.12,
+                    text: `Δf = ${(freqResolution / 1e3).toFixed(2)} kHz`,
+                    showarrow: false,
+                    font: {
+                        color: isDark ? "#4fc3f7" : "#0d6efd",
+                        size: 10,
+                        family: "monospace",
+                        weight: "bold",
+                    },
+                    bgcolor: isDark
+                        ? "rgba(10, 14, 39, 0.9)"
+                        : "rgba(255, 255, 255, 0.9)",
+                    bordercolor: isDark ? "#4fc3f7" : "#0d6efd",
+                    borderwidth: 1,
+                    borderpad: 4,
+                });
 
                 const layout = {
                     title: {
@@ -1186,7 +1298,7 @@
                     },
                     paper_bgcolor: isDark ? "#0a0e27" : "#ffffff",
                     plot_bgcolor: isDark ? "#0f1423" : "#ffffff",
-                    margin: { l: 70, r: 20, t: 60, b: 60 },
+                    margin: { l: 70, r: 20, t: 60, b: 80 },
                     shapes: shapes,
                     annotations: annotations,
                     showlegend: false,
