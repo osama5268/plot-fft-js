@@ -139,6 +139,21 @@
                 opacity: 0.9;
             }
 
+            .btn-toggle {
+                background: var(--accent-purple);
+                color: white;
+                border-color: var(--accent-purple);
+            }
+
+            .btn-toggle:hover {
+                opacity: 0.9;
+            }
+
+            .btn-toggle.active {
+                background: var(--accent-green);
+                border-color: var(--accent-green);
+            }
+
             #theme-toggle {
                 background: none;
                 border: none;
@@ -401,6 +416,23 @@
                             min="1"
                         />
                     </div>
+                    <div class="sample-rate-input">
+                        <label for="carrier-freq">Carrier:</label>
+                        <input
+                            type="number"
+                            id="carrier-freq"
+                            value="100"
+                            step="0.1"
+                        />
+                        <span style="color: var(--text-secondary)">MHz</span>
+                    </div>
+                    <button
+                        id="view-toggle"
+                        class="btn btn-toggle"
+                        style="display: none"
+                    >
+                        View Samples
+                    </button>
                     <button
                         id="load-another-btn"
                         class="btn btn-primary"
@@ -443,6 +475,8 @@
             const themeToggle = document.getElementById("theme-toggle");
             const sampleRateInput = document.getElementById("sample-rate");
             const decimationInput = document.getElementById("decimation");
+            const carrierFreqInput = document.getElementById("carrier-freq");
+            const viewToggle = document.getElementById("view-toggle");
             const html = document.documentElement;
 
             const savedTheme = localStorage.getItem("theme") || "light";
@@ -456,7 +490,33 @@
 
                 // Re-render plot if it exists
                 if (window.plotData) {
+                    if (window.currentView === "samples") {
+                        updateSamplesPlot();
+                    } else {
+                        updatePlot();
+                    }
+                }
+            });
+
+            // View toggle
+            viewToggle.addEventListener("click", () => {
+                if (window.currentView === "fft") {
+                    window.currentView = "samples";
+                    viewToggle.textContent = "View FFT";
+                    viewToggle.classList.add("active");
+                    updateSamplesPlot();
+                } else {
+                    window.currentView = "fft";
+                    viewToggle.textContent = "View Samples";
+                    viewToggle.classList.remove("active");
                     updatePlot();
+                }
+            });
+
+            // Re-render when carrier frequency changes
+            carrierFreqInput.addEventListener("change", () => {
+                if (window.plotData && window.currentView === "samples") {
+                    updateSamplesPlot();
                 }
             });
 
@@ -488,7 +548,9 @@
                     window.plotData.x = x;
                     window.plotData.fs = effectiveFs;
 
-                    updatePlot();
+                    if (window.currentView === "fft") {
+                        updatePlot();
+                    }
                 }
             }
 
@@ -696,9 +758,51 @@
                 return { real: outReal, imag: outImag };
             }
 
+            // Phase unwrapping function based on the Python implementation
+            function unwrapCarrierPhase(
+                samples,
+                coherentCarrierFreq,
+                samplingRate,
+            ) {
+                const cohLen = samples.length;
+                const fbin = (coherentCarrierFreq / samplingRate) * cohLen;
+
+                // Create index array
+                const idx = new Array(cohLen);
+                for (let i = 0; i < cohLen; i++) {
+                    idx[i] = Math.floor((fbin * i) % cohLen);
+                }
+
+                // Create unwrapped samples
+                const unwrappedSamples = new Float32Array(cohLen);
+                for (let i = 0; i < cohLen; i++) {
+                    unwrappedSamples[idx[i]] = samples[i];
+                }
+
+                return unwrappedSamples;
+            }
+
+            // Load file from URL
+            async function loadFileFromURL(url) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(
+                            `Failed to fetch file: ${response.statusText}`,
+                        );
+                    }
+                    const arrayBuffer = await response.arrayBuffer();
+                    return arrayBuffer;
+                } catch (error) {
+                    console.error("Error loading file from URL:", error);
+                    throw error;
+                }
+            }
+
             // File handling
             let currentFile = null;
             window.plotData = null;
+            window.currentView = "fft"; // Default view is FFT
 
             const dropZone = document.getElementById("drop-zone");
             const dropZoneContainer = document.getElementById(
@@ -739,82 +843,54 @@
                 dropZoneContainer.style.display = "flex";
                 viewerContainer.classList.remove("active");
                 loadAnotherBtn.style.display = "none";
+                viewToggle.style.display = "none";
                 currentFile = null;
                 window.plotData = null;
-                // Clear URL params
-                window.history.replaceState(
-                    {},
-                    document.title,
-                    window.location.pathname,
-                );
             });
 
-            async function loadFromURL(samplesPath) {
-                try {
-                    // Show viewer, hide drop zone
-                    dropZoneContainer.style.display = "none";
-                    viewerContainer.classList.add("active");
-                    loadAnotherBtn.style.display = "block";
+            async function processFile(fileOrPath, isURL = false) {
+                let filename;
+                let arrayBuffer;
 
-                    document.getElementById("sidebar-content").innerHTML =
-                        '<div class="loading">Loading from URL...</div>';
-
-                    // Fetch the NPY file
-                    const response = await fetch(samplesPath);
-                    if (!response.ok) {
-                        throw new Error(
-                            `Failed to fetch file: ${response.statusText}`,
-                        );
+                if (isURL) {
+                    filename = fileOrPath.split("/").pop();
+                    try {
+                        arrayBuffer = await loadFileFromURL(fileOrPath);
+                    } catch (error) {
+                        document.getElementById("sidebar-content").innerHTML =
+                            `<div class="error"><strong>Error loading file:</strong> ${error.message}</div>`;
+                        return;
+                    }
+                } else {
+                    if (!fileOrPath.name.endsWith(".npy")) {
+                        alert("Please select a .npy file");
+                        return;
                     }
 
-                    const arrayBuffer = await response.arrayBuffer();
+                    if (!fileOrPath.name.includes("samples")) {
+                        alert(
+                            'Please select a samples NPY file (filename should contain "samples")',
+                        );
+                        return;
+                    }
 
-                    // Create a mock file object for compatibility
-                    currentFile = {
-                        name: samplesPath.split("/").pop() || "samples.npy",
-                    };
-
-                    await processNPYData(
-                        arrayBuffer,
-                        currentFile.name,
-                        samplesPath,
-                    );
-                } catch (err) {
-                    console.error("Error loading from URL:", err);
-                    document.getElementById("sidebar-content").innerHTML =
-                        `<div class="error"><strong>Error loading from URL:</strong> ${err.message}</div>`;
-                    dropZoneContainer.style.display = "flex";
-                    viewerContainer.classList.remove("active");
-                    loadAnotherBtn.style.display = "none";
-                }
-            }
-
-            async function processFile(file) {
-                if (!file.name.endsWith(".npy")) {
-                    alert("Please select a .npy file");
-                    return;
+                    filename = fileOrPath.name;
+                    arrayBuffer = await fileOrPath.arrayBuffer();
                 }
 
-                if (!file.name.includes("samples")) {
-                    alert(
-                        'Please select a samples NPY file (filename should contain "samples")',
-                    );
-                    return;
-                }
-
-                currentFile = file;
+                currentFile = fileOrPath;
 
                 // Show viewer, hide drop zone
                 dropZoneContainer.style.display = "none";
                 viewerContainer.classList.add("active");
                 loadAnotherBtn.style.display = "block";
+                viewToggle.style.display = "block";
 
                 document.getElementById("sidebar-content").innerHTML =
                     '<div class="loading">Loading and computing FFT...</div>';
 
                 try {
                     // Parse NPY
-                    const arrayBuffer = await file.arrayBuffer();
                     const npyData = await NPYParser.parse(arrayBuffer);
 
                     console.log("NPY parsed:", {
@@ -826,27 +902,33 @@
 
                     // Try to load signal info
                     let signalInfo = null;
-                    const signalInfoFilename = file.name.replace(
+                    const signalInfoFilename = filename.replace(
                         "samples.npy",
                         "signal_info.data.json",
                     );
 
                     try {
-                        // Create a file picker for signal info (attempt to find it)
-                        // Since we can't programmatically load local files, we'll show a warning
-                        console.log(
-                            "Looking for signal info file:",
-                            signalInfoFilename,
-                        );
-
-                        // For browser context, we can't auto-load local files
-                        // User would need to upload it or we need it served
-                        const response = await fetch(signalInfoFilename).catch(
-                            () => null,
-                        );
-                        if (response && response.ok) {
-                            signalInfo = await response.json();
-                            console.log("Signal info loaded");
+                        // Try to load signal info from the same location as the samples file
+                        if (isURL) {
+                            const basePath = fileOrPath.substring(
+                                0,
+                                fileOrPath.lastIndexOf("/") + 1,
+                            );
+                            const signalInfoURL = basePath + signalInfoFilename;
+                            const response = await fetch(signalInfoURL);
+                            if (response.ok) {
+                                signalInfo = await response.json();
+                                console.log("Signal info loaded from URL");
+                            }
+                        } else {
+                            // For browser context, we can't auto-load local files
+                            const response = await fetch(
+                                signalInfoFilename,
+                            ).catch(() => null);
+                            if (response && response.ok) {
+                                signalInfo = await response.json();
+                                console.log("Signal info loaded");
+                            }
                         }
                     } catch (e) {
                         console.log("Signal info not available:", e.message);
@@ -897,9 +979,17 @@
                         N,
                         signalInfo,
                         fs: effectiveFs,
-                        filename: file.name,
+                        filename: filename,
                         mag_dB,
+                        rawReal: npyData.real,
+                        rawImag: npyData.imag,
+                        isComplex: npyData.isComplex,
                     };
+
+                    // Reset view to FFT
+                    window.currentView = "fft";
+                    viewToggle.textContent = "View Samples";
+                    viewToggle.classList.remove("active");
 
                     updatePlot();
                     updateSidebar();
@@ -910,10 +1000,25 @@
                 }
             }
 
+            // Check for URL query parameter on page load
+            window.addEventListener("DOMContentLoaded", () => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const samplesParam = urlParams.get("samples");
+
+                if (samplesParam) {
+                    // Load file from URL
+                    console.log(
+                        "Loading file from URL parameter:",
+                        samplesParam,
+                    );
+                    processFile(samplesParam, true);
+                }
+            });
+
             function updateSidebar() {
                 if (!window.plotData) return;
 
-                const { signalInfo, filename } = window.plotData;
+                const { signalInfo, filename, isComplex, N } = window.plotData;
 
                 let html = "";
 
@@ -921,6 +1026,8 @@
                 html += '<div class="info-section">';
                 html += '<div class="section-title">File Information</div>';
                 html += `<div style="font-size: 12px; color: var(--text-secondary); word-break: break-all;">${filename}</div>`;
+                html += `<div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">Type: ${isComplex ? "Complex" : "Real"}</div>`;
+                html += `<div style="font-size: 12px; color: var(--text-secondary);">Samples: ${N.toLocaleString()}</div>`;
                 html += "</div>";
 
                 if (!signalInfo) {
@@ -943,7 +1050,7 @@
 
                 if (metricsExcl) {
                     html +=
-                        '<div style="font-size: 12px; font-weight: 600; color: var(--accent-blue); margin-bottom: 8px;">Excluding Spurs</div>';
+                        '<div style="font-size: 12px; font-weight: 600; color: var(--accent-blue); margin-bottom: 8px;">Excluding Blackout Frequencies</div>';
                     html += '<div class="metric-grid">';
                     html += `<div class="metric-card">
                     <div class="metric-label">SNR</div>
@@ -974,7 +1081,7 @@
 
                 if (metricsIncl) {
                     html +=
-                        '<div style="font-size: 12px; font-weight: 600; color: var(--accent-orange); margin: 16px 0 8px 0;">Including Spurs</div>';
+                        '<div style="font-size: 12px; font-weight: 600; color: var(--accent-orange); margin: 16px 0 8px 0;">Including Blackout Frequencies</div>';
                     html += '<div class="metric-grid">';
                     html += `<div class="metric-card">
                     <div class="metric-label">SNR</div>
@@ -1132,7 +1239,7 @@
 
                         annotations.push({
                             x: dcFreq,
-                            y: dc.amplitude + 15,
+                            y: dc.amplitude + 10,
                             text: `DC<br>${dc.amplitude.toFixed(1)} dBFS<br>${(dcFreq / 1e6).toFixed(2)} MHz`,
                             showarrow: false,
                             font: {
@@ -1157,7 +1264,7 @@
 
                         annotations.push({
                             x: carrierFreq,
-                            y: carrier.amplitude + 15,
+                            y: carrier.amplitude + 10,
                             text: `CARRIER<br>${carrier.amplitude.toFixed(1)} dBFS<br>${(carrierFreq / 1e6).toFixed(2)} MHz`,
                             showarrow: false,
                             font: {
@@ -1182,7 +1289,7 @@
 
                         annotations.push({
                             x: hd2Freq,
-                            y: hd2.amplitude + 15,
+                            y: hd2.amplitude + 10,
                             text: `HD2<br>${hd2.amplitude.toFixed(1)} dBFS<br>${(hd2Freq / 1e6).toFixed(2)} MHz`,
                             showarrow: false,
                             font: {
@@ -1199,72 +1306,6 @@
                         });
                     }
                 }
-
-                // Add FFT resolution markers at edges
-                const minFreq = Math.min(...x);
-                const maxFreq = Math.max(...x);
-                const freqResolution = (maxFreq - minFreq) / (x.length - 1);
-
-                annotations.push({
-                    xref: "x",
-                    yref: "paper",
-                    x: minFreq,
-                    y: -0.12,
-                    text: `${(minFreq / 1e6).toFixed(2)} MHz`,
-                    showarrow: false,
-                    font: {
-                        color: isDark ? "#9e9e9e" : "#6c757d",
-                        size: 10,
-                        family: "monospace",
-                    },
-                    bgcolor: isDark
-                        ? "rgba(10, 14, 39, 0.9)"
-                        : "rgba(255, 255, 255, 0.9)",
-                    bordercolor: isDark ? "#2a3f5f" : "#dee2e6",
-                    borderwidth: 1,
-                    borderpad: 4,
-                });
-
-                annotations.push({
-                    xref: "x",
-                    yref: "paper",
-                    x: maxFreq,
-                    y: -0.12,
-                    text: `${(maxFreq / 1e6).toFixed(2)} MHz`,
-                    showarrow: false,
-                    font: {
-                        color: isDark ? "#9e9e9e" : "#6c757d",
-                        size: 10,
-                        family: "monospace",
-                    },
-                    bgcolor: isDark
-                        ? "rgba(10, 14, 39, 0.9)"
-                        : "rgba(255, 255, 255, 0.9)",
-                    bordercolor: isDark ? "#2a3f5f" : "#dee2e6",
-                    borderwidth: 1,
-                    borderpad: 4,
-                });
-
-                annotations.push({
-                    xref: "paper",
-                    yref: "paper",
-                    x: 0.5,
-                    y: -0.12,
-                    text: `Δf = ${(freqResolution / 1e3).toFixed(2)} kHz`,
-                    showarrow: false,
-                    font: {
-                        color: isDark ? "#4fc3f7" : "#0d6efd",
-                        size: 10,
-                        family: "monospace",
-                        weight: "bold",
-                    },
-                    bgcolor: isDark
-                        ? "rgba(10, 14, 39, 0.9)"
-                        : "rgba(255, 255, 255, 0.9)",
-                    bordercolor: isDark ? "#4fc3f7" : "#0d6efd",
-                    borderwidth: 1,
-                    borderpad: 4,
-                });
 
                 const layout = {
                     title: {
@@ -1298,13 +1339,332 @@
                     },
                     paper_bgcolor: isDark ? "#0a0e27" : "#ffffff",
                     plot_bgcolor: isDark ? "#0f1423" : "#ffffff",
-                    margin: { l: 70, r: 20, t: 60, b: 80 },
+                    margin: { l: 70, r: 20, t: 60, b: 60 },
                     shapes: shapes,
                     annotations: annotations,
                     showlegend: false,
                     font: { family: "system-ui, -apple-system, sans-serif" },
                     hovermode: "closest",
                 };
+
+                Plotly.newPlot("plot", traces, layout, {
+                    responsive: true,
+                    scrollZoom: true,
+                    displayModeBar: true,
+                    modeBarButtonsToRemove: ["lasso2d", "select2d"],
+                    displaylogo: false,
+                });
+            }
+
+            function updateSamplesPlot() {
+                if (!window.plotData) return;
+
+                const { rawReal, rawImag, isComplex } = window.plotData;
+                const isDark = html.getAttribute("data-theme") === "dark";
+
+                // Get carrier frequency for unwrapping
+                const carrierFreq = parseFloat(carrierFreqInput.value) * 1e6; // Convert MHz to Hz
+                const fs = parseFloat(sampleRateInput.value) * 1e6; // Convert MHz to Hz
+                const decimation = parseFloat(decimationInput.value);
+                const effectiveFs = fs / decimation;
+
+                // Create sample index array
+                const N = rawReal.length;
+                const sampleIndices = Array.from({ length: N }, (_, i) => i);
+
+                // Prepare data for different plots
+                const traces = [];
+                const layout = {
+                    title: {
+                        text: "Raw Signal Samples",
+                        font: {
+                            size: 18,
+                            color: isDark ? "#4fc3f7" : "#0d6efd",
+                            weight: 600,
+                        },
+                    },
+                    paper_bgcolor: isDark ? "#0a0e27" : "#ffffff",
+                    plot_bgcolor: isDark ? "#0f1423" : "#ffffff",
+                    font: { family: "system-ui, -apple-system, sans-serif" },
+                    hovermode: "closest",
+                    margin: { l: 60, r: 20, t: 60, b: 60 },
+                };
+
+                if (isComplex) {
+                    // Complex signal: 2x2 grid with new layout
+                    // Top left: Wrapped Real
+                    // Bottom left: Wrapped Imaginary
+                    // Top right: Unwrapped Real
+                    // Bottom right: Unwrapped Imaginary
+
+                    // Unwrapped phase using the correct implementation
+                    const unwrappedReal = unwrapCarrierPhase(
+                        rawReal,
+                        carrierFreq,
+                        effectiveFs,
+                    );
+                    const unwrappedImag = unwrapCarrierPhase(
+                        rawImag,
+                        carrierFreq,
+                        effectiveFs,
+                    );
+
+                    // Create subplots
+                    const subplotTitles = [
+                        "Wrapped Real",
+                        "Wrapped Imaginary",
+                        "Unwrapped Real",
+                        "Unwrapped Imaginary",
+                    ];
+
+                    // Define colors for each plot
+                    const colors = [
+                        isDark ? "#4fc3f7" : "#0d6efd", // Blue for wrapped real
+                        isDark ? "#4caf50" : "#198754", // Green for wrapped imaginary
+                        isDark ? "#ff9800" : "#fd7e14", // Orange for unwrapped real
+                        isDark ? "#9c27b0" : "#6f42c1", // Purple for unwrapped imaginary
+                    ];
+
+                    // Create traces for each subplot
+                    traces.push(
+                        {
+                            x: sampleIndices,
+                            y: Array.from(rawReal),
+                            mode: "lines",
+                            line: {
+                                width: 1,
+                                color: colors[0],
+                            },
+                            name: "Wrapped Real",
+                            xaxis: "x1",
+                            yaxis: "y1",
+                            hovertemplate:
+                                "Sample: %{x}<br>Value: %{y:.4f}<extra></extra>",
+                        },
+                        {
+                            x: sampleIndices,
+                            y: Array.from(rawImag),
+                            mode: "lines",
+                            line: {
+                                width: 1,
+                                color: colors[1],
+                            },
+                            name: "Wrapped Imaginary",
+                            xaxis: "x2",
+                            yaxis: "y2",
+                            hovertemplate:
+                                "Sample: %{x}<br>Value: %{y:.4f}<extra></extra>",
+                        },
+                        {
+                            x: sampleIndices,
+                            y: Array.from(unwrappedReal),
+                            mode: "lines",
+                            line: {
+                                width: 1,
+                                color: colors[2],
+                            },
+                            name: "Unwrapped Real",
+                            xaxis: "x3",
+                            yaxis: "y3",
+                            hovertemplate:
+                                "Sample: %{x}<br>Value: %{y:.4f}<extra></extra>",
+                        },
+                        {
+                            x: sampleIndices,
+                            y: Array.from(unwrappedImag),
+                            mode: "lines",
+                            line: {
+                                width: 1,
+                                color: colors[3],
+                            },
+                            name: "Unwrapped Imaginary",
+                            xaxis: "x4",
+                            yaxis: "y4",
+                            hovertemplate:
+                                "Sample: %{x}<br>Value: %{y:.4f}<extra></extra>",
+                        },
+                    );
+
+                    // Configure 2x2 subplot layout
+                    layout.grid = {
+                        rows: 2,
+                        columns: 2,
+                        pattern: "independent",
+                    };
+                    layout.xaxis = {
+                        title: "Sample Index",
+                        gridcolor: isDark ? "#2a3f5f" : "#e9ecef",
+                        color: isDark ? "#9e9e9e" : "#6c757d",
+                        showgrid: true,
+                        zeroline: true,
+                        zerolinecolor: isDark ? "#2a3f5f" : "#dee2e6",
+                        zerolinewidth: 1,
+                    };
+                    layout.yaxis = {
+                        title: "Amplitude",
+                        gridcolor: isDark ? "#2a3f5f" : "#e9ecef",
+                        color: isDark ? "#9e9e9e" : "#6c757d",
+                        showgrid: true,
+                        zeroline: true,
+                        zerolinecolor: isDark ? "#2a3f5f" : "#dee2e6",
+                        zerolinewidth: 1,
+                    };
+
+                    // Configure subplot titles and axes with new layout
+                    layout.annotations = [
+                        {
+                            text: subplotTitles[0],
+                            font: { size: 14, color: colors[0] },
+                            showarrow: false,
+                            x: 0.25,
+                            y: 1.02,
+                            xref: "paper",
+                            yref: "paper",
+                        },
+                        {
+                            text: subplotTitles[2],
+                            font: { size: 14, color: colors[2] },
+                            showarrow: false,
+                            x: 0.75,
+                            y: 1.02,
+                            xref: "paper",
+                            yref: "paper",
+                        },
+                        {
+                            text: subplotTitles[1],
+                            font: { size: 14, color: colors[1] },
+                            showarrow: false,
+                            x: 0.25,
+                            y: 0.48,
+                            xref: "paper",
+                            yref: "paper",
+                        },
+                        {
+                            text: subplotTitles[3],
+                            font: { size: 14, color: colors[3] },
+                            showarrow: false,
+                            x: 0.75,
+                            y: 0.48,
+                            xref: "paper",
+                            yref: "paper",
+                        },
+                    ];
+
+                    // Configure the remaining axes
+                    layout.xaxis2 = { ...layout.xaxis };
+                    layout.yaxis2 = { ...layout.yaxis };
+                    layout.xaxis3 = { ...layout.xaxis };
+                    layout.yaxis3 = { ...layout.yaxis };
+                    layout.xaxis4 = { ...layout.xaxis };
+                    layout.yaxis4 = { ...layout.yaxis };
+
+                    layout.xaxis2.title = "Sample Index";
+                    layout.yaxis2.title = "Amplitude";
+                    layout.xaxis3.title = "Sample Index";
+                    layout.yaxis3.title = "Amplitude";
+                    layout.xaxis4.title = "Sample Index";
+                    layout.yaxis4.title = "Amplitude";
+                } else {
+                    // Real signal: 1x2 grid
+                    // Unwrapped phase using the correct implementation
+                    const unwrappedReal = unwrapCarrierPhase(
+                        rawReal,
+                        carrierFreq,
+                        effectiveFs,
+                    );
+
+                    // Define colors for each plot
+                    const colors = [
+                        isDark ? "#4fc3f7" : "#0d6efd", // Blue for wrapped
+                        isDark ? "#ff9800" : "#fd7e14", // Orange for unwrapped
+                    ];
+
+                    // Create traces for each subplot
+                    traces.push(
+                        {
+                            x: sampleIndices,
+                            y: Array.from(rawReal),
+                            mode: "lines",
+                            line: {
+                                width: 1,
+                                color: colors[0],
+                            },
+                            name: "Wrapped",
+                            xaxis: "x1",
+                            yaxis: "y1",
+                            hovertemplate:
+                                "Sample: %{x}<br>Value: %{y:.4f}<extra></extra>",
+                        },
+                        {
+                            x: sampleIndices,
+                            y: Array.from(unwrappedReal),
+                            mode: "lines",
+                            line: {
+                                width: 1,
+                                color: colors[1],
+                            },
+                            name: "Unwrapped",
+                            xaxis: "x2",
+                            yaxis: "y2",
+                            hovertemplate:
+                                "Sample: %{x}<br>Value: %{y:.4f}<extra></extra>",
+                        },
+                    );
+
+                    // Configure 1x2 subplot layout
+                    layout.grid = {
+                        rows: 1,
+                        columns: 2,
+                        pattern: "independent",
+                    };
+                    layout.xaxis = {
+                        title: "Sample Index",
+                        gridcolor: isDark ? "#2a3f5f" : "#e9ecef",
+                        color: isDark ? "#9e9e9e" : "#6c757d",
+                        showgrid: true,
+                        zeroline: true,
+                        zerolinecolor: isDark ? "#2a3f5f" : "#dee2e6",
+                        zerolinewidth: 1,
+                    };
+                    layout.yaxis = {
+                        title: "Amplitude",
+                        gridcolor: isDark ? "#2a3f5f" : "#e9ecef",
+                        color: isDark ? "#9e9e9e" : "#6c757d",
+                        showgrid: true,
+                        zeroline: true,
+                        zerolinecolor: isDark ? "#2a3f5f" : "#dee2e6",
+                        zerolinewidth: 1,
+                    };
+
+                    // Configure subplot titles
+                    layout.annotations = [
+                        {
+                            text: "Wrapped",
+                            font: { size: 14, color: colors[0] },
+                            showarrow: false,
+                            x: 0.25,
+                            y: 1.02,
+                            xref: "paper",
+                            yref: "paper",
+                        },
+                        {
+                            text: "Unwrapped",
+                            font: { size: 14, color: colors[1] },
+                            showarrow: false,
+                            x: 0.75,
+                            y: 1.02,
+                            xref: "paper",
+                            yref: "paper",
+                        },
+                    ];
+
+                    // Configure the remaining axes
+                    layout.xaxis2 = { ...layout.xaxis };
+                    layout.yaxis2 = { ...layout.yaxis };
+
+                    layout.xaxis2.title = "Sample Index";
+                    layout.yaxis2.title = "Amplitude";
+                }
 
                 Plotly.newPlot("plot", traces, layout, {
                     responsive: true,
